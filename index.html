@@ -292,12 +292,31 @@ const TYPES = [
 // 데모 샘플 풀 (가상)
 const REGIONS = ["부산항","인천항","평택항","인천공항","광양항","김해공항","울산항"];
 const COMPANIES = [
-  {n:"(주)글로벌푸드", loc:"서울 강남구"}, {n:"대명무역", loc:"인천 중구"},
-  {n:"신정푸드(주)",   loc:"경기 파주시"}, {n:"제일인터내셔널", loc:"부산 동구"},
-  {n:"아시아유통",     loc:"경기 평택시"}, {n:"동북아로지스",   loc:"인천 연수구"},
-  {n:"오션푸드(주)",   loc:"부산 사하구"}, {n:"그린식품(주)",   loc:"충남 천안시"},
-  {n:"한울무역",       loc:"서울 송파구"}, {n:"제주오션(주)",   loc:"제주 제주시"},
-  {n:"김수입 (개인)",  loc:"경기 성남시"}, {n:"이통상 (개인)",  loc:"대구 달서구"},
+  {n:"(주)글로벌푸드", loc:"서울 강남구", addr:"서울 강남구 테헤란로 152, 10층", biz:"120-81-34**7", tel:"02-555-01**"},
+  {n:"대명무역",       loc:"인천 중구",   addr:"인천 중구 서해대로 366, 항동7가", biz:"214-86-77**2", tel:"032-888-23**"},
+  {n:"신정푸드(주)",   loc:"경기 파주시", addr:"경기 파주시 문산읍 돈유2로 27",   biz:"135-81-90**4", tel:"031-940-55**"},
+  {n:"제일인터내셔널", loc:"부산 동구",   addr:"부산 동구 충장대로 206, 5층",     biz:"605-81-12**8", tel:"051-463-77**"},
+  {n:"아시아유통",     loc:"경기 평택시", addr:"경기 평택시 포승읍 평택항로 98",  biz:"125-86-45**1", tel:"031-686-90**"},
+  {n:"동북아로지스",   loc:"인천 연수구", addr:"인천 연수구 인천신항대로 892",    biz:"131-86-23**6", tel:"032-830-44**"},
+  {n:"오션푸드(주)",   loc:"부산 사하구", addr:"부산 사하구 다대로 172, 수산가공단지", biz:"602-81-56**3", tel:"051-262-88**"},
+  {n:"그린식품(주)",   loc:"충남 천안시", addr:"충남 천안시 서북구 2공단로 118",  biz:"312-81-67**9", tel:"041-566-12**"},
+  {n:"한울무역",       loc:"서울 송파구", addr:"서울 송파구 법원로 128, 문정법조단지", biz:"215-87-89**5", tel:"02-404-33**"},
+  {n:"제주오션(주)",   loc:"제주 제주시", addr:"제주 제주시 임항로 68, 수협빌딩 3층", biz:"616-81-01**2", tel:"064-751-66**"},
+  {n:"김수입 (개인)",  loc:"경기 성남시", addr:"경기 성남시 분당구 판교로 235",   biz:"개인사업자 129-**-***45", tel:"031-705-98**"},
+  {n:"이통상 (개인)",  loc:"대구 달서구", addr:"대구 달서구 성서공단로 205",      biz:"개인사업자 514-**-***81", tel:"053-582-34**"},
+];
+// 국내 유통/구매처 풀 — 레코드마다 1~3곳 연결 (구매자 다수 정보)
+const DISTRIBUTORS = [
+  {n:"이마트 성수점",           addr:"서울 성동구 뚝섬로 379"},
+  {n:"롯데마트 서울역점",       addr:"서울 중구 한강대로 405"},
+  {n:"홈플러스 부산센텀점",     addr:"부산 해운대구 센텀동로 6"},
+  {n:"쿠팡 프레시 이천물류센터", addr:"경기 이천시 마장면 덕이로 154"},
+  {n:"하나로마트 양재점",       addr:"서울 서초구 매헌로 22"},
+  {n:"코스트코 광명점",         addr:"경기 광명시 일직로 40"},
+  {n:"백년식자재마트",          addr:"대구 달서구 성서공단로 11"},
+  {n:"남도식자재 도매",         addr:"광주 서구 매월2로 53"},
+  {n:"부산공동어시장 중매인",   addr:"부산 서구 충무대로 202"},
+  {n:"강원종합식품 도매센터",   addr:"강원 원주시 우산공단길 30"},
 ];
 const OVERSEAS = ["QINGDAO FOODS","AUSTRALIAN MEAT CO.","VIET FRUIT LTD.","YAMASA CORP.","SEAFOOD VN CO.","SPICE CHINA","HEALTH BIO LLC.","EURO DAIRY GmbH"];
 const ITEMS = [
@@ -312,6 +331,7 @@ const FAILS = [
   "식품사용금지원료 함유","대장균군 양성","보존료(소브산) 부적합","곰팡이독소(아플라톡신) 초과","표시기준 위반(원재료명 누락)",
 ];
 const pick = a => a[Math.floor(Math.random()*a.length)];
+const pickN = (a,n) => {const c=[...a],out=[];while(n-->0&&c.length)out.push(c.splice(Math.floor(Math.random()*c.length),1)[0]);return out;};
 const pad = n => String(n).padStart(2,"0");
 // 로컬(KST) 기준 날짜 문자열 — toISOString은 UTC라 날짜 필터가 어긋나므로 사용 금지
 const dayStr = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
@@ -328,6 +348,7 @@ function makeRecord(dateObj){
     c:o.c, f:o.f, region:pick(REGIONS),
     item:it.n, type:it.t, qty:it.q,
     co:pick(OVERSEAS), buyer:co.n, buyerLoc:co.loc,
+    dist:pickN(DISTRIBUTORS, 1+Math.floor(Math.random()*3)), // 국내 유통/구매처 1~3곳
     status, reason: status==="부적합"?pick(FAILS):(status==="검토중"?"현장 정밀검사 대기중":"정밀/서류 검사 적합"),
     isNew:false,
   };
@@ -405,7 +426,7 @@ function renderTable(){
       <td style="white-space:nowrap"><span class="flag">${d.f}</span>${d.c}</td>
       <td><div style="font-weight:600">${d.item}</div><div class="sub">${d.qty} · ${d.type}</div></td>
       <td><div class="co-name">${d.co}</div><div class="sub loc">📍 ${d.region} 통관</div></td>
-      <td><div style="font-weight:600;font-size:12px">${d.buyer}</div><div class="sub">${d.buyerLoc}</div></td>
+      <td><div style="font-weight:600;font-size:12px">${d.buyer}</div><div class="sub">${d.buyerLoc} · 유통 ${d.dist.length}곳</div></td>
       <td><span class="status s-${d.status}">${d.status}</span></td>
       <td><div class="reason ${d.status==='부적합'?'fail':''}">${d.status==='부적합'?'⚠ ':''}${d.reason}</div></td>
     </tr>`).join("") : `<tr><td colspan="7" class="empty">조건에 일치하는 데이터가 없습니다.</td></tr>`;
@@ -473,8 +494,8 @@ function renderDetail(country){
   const byCo={}; recs.forEach(d=>{(byCo[d.buyer]=byCo[d.buyer]||{loc:d.buyerLoc,n:0}).n++;});
   const cos=Object.entries(byCo).sort((a,b)=>b[1].n-a[1].n);
   $("coList").innerHTML = cos.length ? cos.map(([name,v])=>
-    `<div class="co-row"><span class="co-name">${name}</span> <span class="loc">📍 ${v.loc}</span>
-      <div class="sub">수집 통관 ${v.n}건</div></div>`).join("")
+    `<div class="co-row"><a href="#" onclick="openBuyer('${name}');return false" class="co-name" style="text-decoration:underline">${name} ↗</a> <span class="loc">📍 ${v.loc}</span>
+      <div class="sub">수집 통관 ${v.n}건 · 클릭 시 구매자 상세(주소·유통처)</div></div>`).join("")
     : `<div class="sub" style="padding:8px">해당 국가의 수집 업체 데이터가 없습니다.</div>`;
 }
 window.openDetail=function(country){
@@ -511,17 +532,46 @@ statusBtns.forEach(b=>b.onclick=()=>{
 });
 
 /* 신고 건 상세 모달 */
+const rmRow=(k,v)=>`<div class="rm-row"><span class="k">${k}</span><span class="v">${v}</span></div>`;
+const buyerLink=name=>`<a href="#" onclick="openBuyer('${name}');return false" style="color:var(--sky);font-weight:600">${name} ↗</a>`;
+
 window.openRec=function(id){
   const d=DATA.find(x=>x.id===id); if(!d)return;
+  const comp=COMPANIES.find(c=>c.n===d.buyer);
   $("rmTitle").innerHTML=`${d.f} ${d.item} <span class="status s-${d.status}" style="font-size:11px">${d.status}</span>`;
-  const row=(k,v)=>`<div class="rm-row"><span class="k">${k}</span><span class="v">${v}</span></div>`;
   $("rmBody").innerHTML=
-    row("신고번호",d.id)+row("신고 일시",d.date)+
-    row("원산지",`${d.f} ${d.c}`)+row("반입 지역",`📍 ${d.region}`)+
-    row("품목",`${d.item} <span class="item-chip">${d.type}</span>`)+row("수량",d.qty)+
-    row("해외 제조/수출",`<span class="co-name">${d.co}</span>`)+
-    row("국내 구매자",`${d.buyer}`)+row("구매자 소재지",d.buyerLoc)+
-    row("검사 사유 / 검출",`<span class="${d.status==='부적합'?'reason fail':''}">${d.status==='부적합'?'⚠ ':''}${d.reason}</span>`);
+    rmRow("신고번호",d.id)+rmRow("신고 일시",d.date)+
+    rmRow("원산지",`${d.f} ${d.c}`)+rmRow("반입 지역",`📍 ${d.region}`)+
+    rmRow("품목",`${d.item} <span class="item-chip">${d.type}</span>`)+rmRow("수량",d.qty)+
+    rmRow("해외 제조/수출",`<span class="co-name">${d.co}</span>`)+
+    rmRow("국내 구매자",buyerLink(d.buyer))+
+    rmRow("구매자 주소",comp?comp.addr:d.buyerLoc)+
+    rmRow("검사 사유 / 검출",`<span class="${d.status==='부적합'?'reason fail':''}">${d.status==='부적합'?'⚠ ':''}${d.reason}</span>`)+
+    `<div style="margin:14px 0 4px;font-size:12px;font-weight:600;color:var(--ink-dim)">🏪 국내 유통/구매처 (${d.dist.length}곳)</div>`+
+    d.dist.map(x=>rmRow(x.n,`<span class="sub" style="margin:0">${x.addr}</span>`)).join("");
+  $("recModal").classList.add("open");
+};
+
+/* 구매자(기업/개인) 상세 모달 — 소재지·사업자정보·수집 이력·거래 유통처 */
+window.openBuyer=function(name){
+  const comp=COMPANIES.find(c=>c.n===name); if(!comp)return;
+  const recs=DATA.filter(d=>d.buyer===name);
+  const fails=recs.filter(d=>d.status==="부적합").length;
+  // 수입 품목 집계
+  const byItem={}; recs.forEach(d=>byItem[d.item]=(byItem[d.item]||0)+1);
+  const items=Object.entries(byItem).sort((a,b)=>b[1]-a[1]);
+  // 거래 유통처 집계 (중복 제거)
+  const distMap=new Map(); recs.forEach(d=>d.dist.forEach(x=>distMap.set(x.n,x)));
+  $("rmTitle").innerHTML=`🏢 ${name}`;
+  $("rmBody").innerHTML=
+    rmRow("소재지",comp.addr)+
+    rmRow("사업자등록번호",comp.biz)+
+    rmRow("대표번호",comp.tel)+
+    rmRow("수집 통관",`${recs.length}건 · <span style="color:var(--coral)">부적합 ${fails}건</span>`)+
+    `<div style="margin:14px 0 4px;font-size:12px;font-weight:600;color:var(--ink-dim)">🍱 수입 품목 (${items.length}종)</div>`+
+    (items.map(([n,c])=>rmRow(n,`${c}건`)).join("")||`<div class="sub" style="padding:6px 2px">수집된 품목 없음</div>`)+
+    `<div style="margin:14px 0 4px;font-size:12px;font-weight:600;color:var(--ink-dim)">🏪 거래 유통/구매처 (${distMap.size}곳)</div>`+
+    ([...distMap.values()].map(x=>rmRow(x.n,`<span class="sub" style="margin:0">${x.addr}</span>`)).join("")||`<div class="sub" style="padding:6px 2px">거래처 정보 없음</div>`);
   $("recModal").classList.add("open");
 };
 $("rmClose").onclick=()=>$("recModal").classList.remove("open");
@@ -532,9 +582,9 @@ document.addEventListener("keydown",e=>{if(e.key==="Escape")$("recModal").classL
 $("btnCsv").onclick=()=>{
   const rows=applyFilter();
   const esc=v=>`"${String(v).replace(/"/g,'""')}"`;
-  const head=["신고번호","신고일시","원산지","반입지역","품목","품목군","수량","해외기업","국내구매자","소재지","상태","사유"];
+  const head=["신고번호","신고일시","원산지","반입지역","품목","품목군","수량","해외기업","국내구매자","소재지","유통처","상태","사유"];
   const csv=String.fromCharCode(0xFEFF)+[head.join(","),  // BOM: Excel 한글 호환
-    ...rows.map(d=>[d.id,d.date,d.c,d.region,d.item,d.type,d.qty,d.co,d.buyer,d.buyerLoc,d.status,d.reason].map(esc).join(","))
+    ...rows.map(d=>[d.id,d.date,d.c,d.region,d.item,d.type,d.qty,d.co,d.buyer,d.buyerLoc,d.dist.map(x=>x.n).join(" / "),d.status,d.reason].map(esc).join(","))
   ].join("\r\n");
   const a=document.createElement("a");
   a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8"}));
