@@ -6,6 +6,26 @@
   <title>수입식품 실시간 대시보드</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
+    /* ── 디자인 시스템 토큰 (dataviz 검증 팔레트) ───────────── */
+    :root {
+      --surface-1:  #ffffff;   /* 카드 표면 */
+      --page:       #f6f7f9;   /* 배경 평면 */
+      --ink:        #0b0b0b;   /* 기본 잉크 */
+      --ink-2:      #52514e;   /* 보조 잉크 */
+      --muted:      #898781;   /* 축/라벨 */
+      --grid:       #e1e0d9;   /* 헤어라인 */
+      /* sequential blue — 크기 비교용 */
+      --seq-100:    #cde2fb;
+      --seq-250:    #86b6ef;
+      --seq-450:    #2a78d6;
+      --seq-600:    #184f95;
+      /* status — 상태 전용(고정) */
+      --good:       #0ca30c;
+      --warning:    #fab219;
+      --critical:   #d03b3b;
+      --info:       #2a78d6;
+    }
+
     @keyframes flashNew {
       0%   { background-color: #fef08a; }
       70%  { background-color: #fef9c3; }
@@ -13,12 +33,31 @@
     }
     .row-new { animation: flashNew 2.5s ease-out; }
     .modal-backdrop { background: rgba(0,0,0,0.5); }
-    .status-pass  { background:#dcfce7; color:#166534; }
-    .status-review{ background:#dbeafe; color:#1e40af; }
-    .status-fail  { background:#fee2e2; color:#991b1b; }
+
+    /* 상태 배지 — 색 + 라벨(색 단독 금지) */
+    .status-pass   { background:#dcfce7; color:#116611; }
+    .status-review { background:#dbeafe; color:#1e40af; }
+    .status-fail   { background:#fde2e2; color:#9a1f1f; }
+
+    /* 순위 막대 리스트 */
+    .bar-track {
+      background: var(--grid);
+      border-radius: 5px;
+      height: 10px;
+      overflow: hidden;
+    }
+    .bar-fill {
+      height: 100%;
+      border-radius: 5px;
+      background: var(--seq-450);
+      transition: width .4s ease;
+    }
+    .tab-btn { color: var(--ink-2); border-bottom: 2px solid transparent; }
+    .tab-btn.active { color: var(--seq-600); border-bottom-color: var(--seq-450); font-weight: 600; }
+    .tabular { font-variant-numeric: tabular-nums; }
   </style>
 </head>
-<body class="bg-slate-50 text-slate-800">
+<body class="text-slate-800" style="background: var(--page)">
   <header class="bg-white shadow-sm sticky top-0 z-10">
     <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
       <h1 class="text-xl font-bold">🍱 수입식품 실시간 대시보드</h1>
@@ -29,33 +68,84 @@
         <button id="toggle-poll" class="px-3 py-1 rounded bg-slate-800 text-white">일시정지</button>
       </div>
     </div>
-    <div id="country-bar" class="max-w-7xl mx-auto px-4 pb-3 flex flex-wrap gap-2"></div>
   </header>
 
-  <main class="max-w-7xl mx-auto px-4 py-4">
-    <div class="flex flex-wrap items-center gap-3 mb-3">
+  <main class="max-w-7xl mx-auto px-4 py-4 space-y-4">
+    <!-- KPI 요약 타일 -->
+    <section id="kpi-row" class="grid grid-cols-2 md:grid-cols-4 gap-3"></section>
+
+    <!-- 검색 -->
+    <div class="flex flex-wrap items-center gap-3">
       <input id="search" type="text" placeholder="품목/수입자/제조사 검색…"
              class="flex-1 min-w-[220px] border rounded px-3 py-2" />
       <div class="text-sm text-slate-500">
-        총 <span id="count-total" class="font-semibold">0</span>건 ·
-        신규 <span id="count-new" class="font-semibold text-amber-600">0</span>건
+        표시 <span id="count-total" class="font-semibold tabular">0</span>건 ·
+        신규 <span id="count-new" class="font-semibold text-amber-600 tabular">0</span>건
       </div>
     </div>
 
-    <div class="overflow-x-auto bg-white rounded-lg shadow-sm">
+    <!-- 국가 필터 칩 -->
+    <div id="country-bar" class="flex flex-wrap gap-2"></div>
+
+    <!-- 탭 -->
+    <nav id="tabs" class="flex gap-1 border-b" style="border-color: var(--grid)">
+      <button class="tab-btn active px-4 py-2 text-sm" data-tab="all">전체 목록</button>
+      <button class="tab-btn px-4 py-2 text-sm" data-tab="country">국가별</button>
+      <button class="tab-btn px-4 py-2 text-sm" data-tab="item">수입식품</button>
+      <button class="tab-btn px-4 py-2 text-sm" data-tab="buyer">수입자·지역</button>
+      <button class="tab-btn px-4 py-2 text-sm" data-tab="trend">시간대별 추이</button>
+    </nav>
+
+    <!-- 패널: 전체 목록 -->
+    <section id="panel-all" class="overflow-x-auto bg-white rounded-lg shadow-sm">
       <table class="w-full text-sm">
         <thead class="bg-slate-100 text-slate-600 text-left">
           <tr>
             <th class="px-3 py-2">날짜</th>
             <th class="px-3 py-2">수입국 / 반입항</th>
             <th class="px-3 py-2">품목</th>
-            <th class="px-3 py-2">수입자 / 제조사</th>
+            <th class="px-3 py-2">수입자 / 지역</th>
             <th class="px-3 py-2">상태</th>
           </tr>
         </thead>
         <tbody id="table-body"></tbody>
       </table>
-    </div>
+    </section>
+
+    <!-- 패널: 국가별 -->
+    <section id="panel-country" class="hidden bg-white rounded-lg shadow-sm p-4">
+      <h2 class="text-sm font-semibold text-slate-500 mb-3">수입국별 신고 건수</h2>
+      <div id="list-country" class="space-y-2.5"></div>
+    </section>
+
+    <!-- 패널: 수입식품 -->
+    <section id="panel-item" class="hidden bg-white rounded-lg shadow-sm p-4">
+      <h2 class="text-sm font-semibold text-slate-500 mb-3">품목별 수입 건수</h2>
+      <div id="list-item" class="space-y-2.5"></div>
+    </section>
+
+    <!-- 패널: 수입자·지역 -->
+    <section id="panel-buyer" class="hidden">
+      <div class="grid md:grid-cols-2 gap-4">
+        <div class="bg-white rounded-lg shadow-sm p-4">
+          <h2 class="text-sm font-semibold text-slate-500 mb-3">지역별 수입 건수</h2>
+          <div id="list-region" class="space-y-2.5"></div>
+        </div>
+        <div class="bg-white rounded-lg shadow-sm p-4">
+          <h2 class="text-sm font-semibold text-slate-500 mb-3">수입자(기업·개인)별 건수</h2>
+          <div id="list-buyer" class="space-y-2.5"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 패널: 시간대별 추이 -->
+    <section id="panel-trend" class="hidden bg-white rounded-lg shadow-sm p-4">
+      <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+        <h2 class="text-sm font-semibold text-slate-500">폴링 시점별 수신 추이</h2>
+        <div id="trend-legend" class="flex gap-4 text-xs"></div>
+      </div>
+      <div id="trend-chart" class="relative"></div>
+    </section>
   </main>
 
   <div id="modal" class="fixed inset-0 hidden items-center justify-center modal-backdrop z-20">

@@ -43,6 +43,7 @@ function normalize(raw) {
     itemName:     raw.itemName ?? raw.prductNm ?? "",
     weight:       raw.weight ?? raw.wght ?? "",
     importer:     raw.importer ?? raw.bsnmNm ?? "",
+    region:       raw.region ?? raw.bsnmRegn ?? "",
     manufacturer: raw.manufacturer ?? raw.ovsMnftrNm ?? "",
     status:       mapStatus(raw.status ?? raw.processSttus),
     hazard:       raw.hazard ?? raw.hrmflChmcl ?? "",
@@ -84,6 +85,24 @@ export async function fetchRecords() {
 // ----------------------------------------------------------
 // 목업 데이터 생성기 (테스트/데모용)
 // ----------------------------------------------------------
+// 고정 수입자(기업/개인) 풀 — 반복 등장하여 수입자·지역 집계가 의미를 갖도록 함
+const IMPORTERS = [
+  { name: "㈜한울무역",       region: "서울" },
+  { name: "글로벌푸드코리아㈜", region: "경기" },
+  { name: "부산종합식품㈜",    region: "부산" },
+  { name: "대양수산㈜",        region: "부산" },
+  { name: "인천항만유통㈜",    region: "인천" },
+  { name: "충청농산㈜",        region: "충남" },
+  { name: "영남물산㈜",        region: "경남" },
+  { name: "호남식자재㈜",      region: "전남" },
+  { name: "㈜서울델리마트",    region: "서울" },
+  { name: "제주오션㈜",        region: "제주" },
+  { name: "김수입 (개인)",     region: "경기" },
+  { name: "이통상 (개인)",     region: "대구" },
+];
+
+const pick = arr => arr[Math.floor(Math.random() * arr.length)];
+
 let mockSeq = 1000;
 function mockFetch() {
   const countries = Object.keys(FLAGS).filter(c => c !== "기타");
@@ -98,20 +117,22 @@ function mockFetch() {
   const n = 3 + Math.floor(Math.random() * 4);
   const out = [];
   for (let i = 0; i < n; i++) {
-    const st = statuses[Math.floor(Math.random() * statuses.length)];
-    const [cat, name] = items[Math.floor(Math.random() * items.length)];
+    const st = pick(statuses);
+    const [cat, name] = pick(items);
+    const imp = pick(IMPORTERS);
     out.push({
       id: String(mockSeq++),
       date: new Date().toISOString().slice(0, 10),
-      country: countries[Math.floor(Math.random() * countries.length)],
-      port: ports[Math.floor(Math.random() * ports.length)],
+      country: pick(countries),
+      port: pick(ports),
       category: cat,
       itemName: name,
       weight: `${(Math.random() * 5000).toFixed(0)} kg`,
-      importer: `㈜한국무역${Math.floor(Math.random() * 90 + 10)}`,
+      importer: imp.name,
+      region: imp.region,
       manufacturer: `Overseas Foods Co. #${Math.floor(Math.random() * 900 + 100)}`,
       status: st,
-      hazard: st === "fail" ? hazards[Math.floor(Math.random() * hazards.length)] : "",
+      hazard: st === "fail" ? pick(hazards) : "",
     });
   }
   return new Promise(r => setTimeout(() => r(out.map(normalize)), 300));

@@ -5,13 +5,12 @@ import { UI } from "./ui.js";
 const POLL_INTERVAL = 60_000; // 60초 (60~300초 사이 조정 가능)
 const store = new Store();
 let lastNewIds = new Set();
+let sessionNew = 0;   // 이번 접속 이후 누적 신규 건수
 let timer = null;
 let polling = true;
 
 function render() {
-  const all = store.all();
-  UI.renderCountryBar(all);
-  UI.renderTable(all, lastNewIds);
+  UI.render(store.all(), { newIds: lastNewIds, sessionNew, timeline: store.timeline });
 }
 
 async function poll() {
@@ -20,11 +19,12 @@ async function poll() {
     const batch = await fetchRecords();
     const newIds = store.ingest(batch);
     lastNewIds = new Set(newIds);
+    sessionNew += newIds.length;
     render();
     UI.setStatus("live", "실시간");
     UI.setLastUpdated(new Date());
     // 애니메이션 종료 후 신규 표시 해제
-    setTimeout(() => { lastNewIds = new Set(); }, 3000);
+    setTimeout(() => { lastNewIds = new Set(); render(); }, 3000);
   } catch (err) {
     console.error(err);
     UI.setStatus("error", `오류: ${err.message}`);
@@ -32,6 +32,7 @@ async function poll() {
 }
 
 function startPolling() {
+  clearInterval(timer);      // 중복 타이머 방지
   poll();
   timer = setInterval(poll, POLL_INTERVAL);
 }
@@ -56,5 +57,9 @@ UI.init({
   onSearch: render,
   onTogglePoll: togglePoll,
 });
+
+// URL 해시로 탭 딥링크 (#country / #item / #buyer)
+if (["country", "item", "buyer", "trend"].includes(location.hash.slice(1)))
+  UI.switchTab(location.hash.slice(1));
 
 startPolling();
