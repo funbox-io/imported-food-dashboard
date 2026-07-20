@@ -178,9 +178,9 @@ footer .warn{color:var(--amber)}
   <!-- origin ranking + type breakdown -->
   <div class="grid">
     <div class="card">
-      <h2>원산지 국가별 수입 현황 <span class="tag">수입량 순위 · 행 클릭 시 상세</span></h2>
+      <h2>원산지 국가별 수입 현황 <span class="tag">실시간 수집 비중 순위 · 행 클릭 시 상세</span></h2>
       <table>
-        <thead><tr><th style="width:8%">#</th><th style="width:34%">원산지</th><th>주요 수입 품목</th><th style="text-align:right">비중</th></tr></thead>
+        <thead><tr><th style="width:8%">#</th><th style="width:34%">원산지</th><th>주요 수입 품목</th><th style="text-align:right">수집 비중 / 연간</th></tr></thead>
         <tbody id="originBody"></tbody>
       </table>
     </div>
@@ -237,16 +237,16 @@ footer .warn{color:var(--amber)}
 <script>
 /* ═══════════ 데이터 (집계 통계는 검사연보 기반, 개별 레코드는 데모 샘플) ═══════════ */
 const ORIGINS = [
-  {c:"미국",     f:"🇺🇸", rank:1, share:"18.2%", items:["밀","옥수수","대두","돼지고기"]},
-  {c:"중국",     f:"🇨🇳", rank:2, share:"16.7%", items:["김치","정제소금","신선채소","기구·용기"]},
-  {c:"호주",     f:"🇦🇺", rank:3, share:"9.4%",  items:["소고기","밀","포도주"]},
-  {c:"베트남",   f:"🇻🇳", rank:4, share:"6.1%",  items:["냉동수산물","냉동과일","커피"]},
-  {c:"브라질",   f:"🇧🇷", rank:5, share:"5.3%",  items:["닭고기","대두","원당"]},
-  {c:"태국",     f:"🇹🇭", rank:6, share:"4.8%",  items:["냉동새우","가공식품","쌀"]},
-  {c:"이탈리아", f:"🇮🇹", rank:7, share:"3.9%",  items:["포도주","치즈","파스타"]},
-  {c:"일본",     f:"🇯🇵", rank:8, share:"3.5%",  items:["소스류","가공식품","맥주"]},
-  {c:"프랑스",   f:"🇫🇷", rank:9, share:"3.1%",  items:["포도주","유제품","제과"]},
-  {c:"독일",     f:"🇩🇪", rank:10,share:"2.7%",  items:["돼지고기","맥주","가공육"]},
+  {c:"미국",     f:"🇺🇸", share:"18.2%", items:["밀","옥수수","대두","돼지고기"]},
+  {c:"중국",     f:"🇨🇳", share:"16.7%", items:["김치","정제소금","신선채소","기구·용기"]},
+  {c:"호주",     f:"🇦🇺", share:"9.4%",  items:["소고기","밀","포도주"]},
+  {c:"베트남",   f:"🇻🇳", share:"6.1%",  items:["냉동수산물","냉동과일","커피"]},
+  {c:"브라질",   f:"🇧🇷", share:"5.3%",  items:["닭고기","대두","원당"]},
+  {c:"태국",     f:"🇹🇭", share:"4.8%",  items:["냉동새우","가공식품","쌀"]},
+  {c:"이탈리아", f:"🇮🇹", share:"3.9%",  items:["포도주","치즈","파스타"]},
+  {c:"일본",     f:"🇯🇵", share:"3.5%",  items:["소스류","가공식품","맥주"]},
+  {c:"프랑스",   f:"🇫🇷", share:"3.1%",  items:["포도주","유제품","제과"]},
+  {c:"독일",     f:"🇩🇪", share:"2.7%",  items:["돼지고기","맥주","가공육"]},
 ];
 const TYPES = [
   {t:"농·임산물",       v:44.8, col:"#5aa7ff"},
@@ -256,8 +256,6 @@ const TYPES = [
   {t:"건강기능식품",    v:2.6,  col:"#ff6b6b"},
   {t:"기구·용기·포장",  v:2.3,  col:"#8fa1b8"},
 ];
-const FLAGS = Object.fromEntries(ORIGINS.map(o=>[o.c,o.f]));
-
 // 데모 샘플 풀 (가상)
 const REGIONS = ["부산항","인천항","평택항","인천공항","광양항","김해공항","울산항"];
 const COMPANIES = [
@@ -282,7 +280,9 @@ const FAILS = [
 ];
 const pick = a => a[Math.floor(Math.random()*a.length)];
 const pad = n => String(n).padStart(2,"0");
-const fmtDT = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+// 로컬(KST) 기준 날짜 문자열 — toISOString은 UTC라 날짜 필터가 어긋나므로 사용 금지
+const dayStr = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+const fmtDT = d => `${dayStr(d)} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 
 let seq = 5000;
 function makeRecord(dateObj){
@@ -291,7 +291,7 @@ function makeRecord(dateObj){
   const o = pick(ORIGINS), it = pick(ITEMS), co = pick(COMPANIES);
   return {
     id:"IMP-"+(seq++),
-    dt:dateObj, date:fmtDT(dateObj), day:dateObj.toISOString().slice(0,10),
+    dt:dateObj, date:fmtDT(dateObj), day:dayStr(dateObj),
     c:o.c, f:o.f, region:pick(REGIONS),
     item:it.n, type:it.t, qty:it.q,
     co:pick(OVERSEAS), buyer:co.n, buyerLoc:co.loc,
@@ -331,14 +331,28 @@ function applyFilter(){
 }
 
 /* ═══════════ 렌더 ═══════════ */
+// 수집 데이터 단일 순회 통계 (국가별 건수/부적합 + 전체 부적합) — 렌더마다 1회만 계산
+function computeStats(){
+  const cnt={}, fail={}; let totalFail=0;
+  for(const d of DATA){
+    cnt[d.c]=(cnt[d.c]||0)+1;
+    if(d.status==="부적합"){fail[d.c]=(fail[d.c]||0)+1; totalFail++;}
+  }
+  return {cnt, fail, totalFail, total:DATA.length||1};
+}
+let stats = null; // renderAll 시 갱신, openDetail/updateKpi에서 재사용
+
 function renderOrigins(){
-  $("originBody").innerHTML = ORIGINS.map(o=>{
-    const n=DATA.filter(d=>d.c===o.c).length;
+  const {cnt,total}=stats;
+  // 수집 비중 내림차순 정렬 (실시간 순위)
+  const rows=[...ORIGINS].sort((a,b)=>(cnt[b.c]||0)-(cnt[a.c]||0));
+  $("originBody").innerHTML = rows.map((o,rank)=>{
+    const n=cnt[o.c]||0, share=(n/total*100).toFixed(1);
     return `<tr data-c="${o.c}" class="${o.c===selCountry?'sel':''}" onclick="openDetail('${o.c}')">
-      <td class="num" style="color:var(--ink-dim)">${o.rank}</td>
+      <td class="num" style="color:var(--ink-dim)">${rank+1}</td>
       <td><span class="flag">${o.f}</span>${o.c}${n?`<span class="co-badge">건 ${n}</span>`:""}</td>
-      <td>${o.items.map(i=>`<span class="item-chip">${i}</span>`).join("")}</td>
-      <td class="num">${o.share}</td></tr>`;
+      <td>${o.items.map(it=>`<span class="item-chip">${it}</span>`).join("")}</td>
+      <td class="num"><b style="color:var(--sky)">${share}%</b><div class="sub" style="margin-top:2px">연간 ${o.share}</div></td></tr>`;
   }).join("");
 }
 function renderTypes(){
@@ -348,12 +362,13 @@ function renderTypes(){
       <div class="type-bar-bg"><div class="type-bar" style="width:${(t.v/max*100).toFixed(1)}%;background:${t.col}"></div></div>
       <span class="cnt" style="color:${t.col}">${t.v.toFixed(1)}%</span></div>`).join("");
 }
+let newFlagTimer=null; // isNew 해제 타이머 중첩 방지
 function renderTable(){
   const rows=applyFilter();
   $("shownN").textContent=rows.length;
   $("liveBody").innerHTML = rows.length ? rows.map(d=>`
     <tr class="${d.isNew?'new-row':''}">
-      <td><div class="time">${d.date.split(" ")[0]}</div><div class="sub">${d.date.split(" ")[1]} · ${d.id}</div></td>
+      <td><div class="time">${d.day}</div><div class="sub">${d.date.slice(11)} · ${d.id}</div></td>
       <td style="white-space:nowrap"><span class="flag">${d.f}</span>${d.c}</td>
       <td><div style="font-weight:600">${d.item}</div><div class="sub">${d.qty} · ${d.type}</div></td>
       <td><div class="co-name">${d.co}</div><div class="sub loc">📍 ${d.region} 통관</div></td>
@@ -361,18 +376,22 @@ function renderTable(){
       <td><span class="status s-${d.status}">${d.status}</span></td>
       <td><div class="reason ${d.status==='부적합'?'fail':''}">${d.status==='부적합'?'⚠ ':''}${d.reason}</div></td>
     </tr>`).join("") : `<tr><td colspan="7" class="empty">조건에 일치하는 데이터가 없습니다.</td></tr>`;
-  setTimeout(()=>DATA.forEach(d=>d.isNew=false),3000);
+  clearTimeout(newFlagTimer);
+  newFlagTimer=setTimeout(()=>DATA.forEach(d=>d.isNew=false),3000);
 }
-function renderAll(){renderOrigins();renderTable();}
+function renderAll(){stats=computeStats();renderOrigins();renderTable();}
 
 /* 국가 상세 드릴다운 */
-window.openDetail=function(country){
-  selCountry=country;
+// 패널 내용 렌더 (열기/스크롤과 분리 — 폴링 시 열린 패널 자동 갱신에 재사용)
+function renderDetail(country){
   const o=ORIGINS.find(x=>x.c===country);
+  if(!o) return;
+  if(!stats) stats=computeStats();
   const recs=DATA.filter(d=>d.c===country);
-  const fails=recs.filter(d=>d.status==="부적합").length;
+  const fails=stats.fail[country]||0;
+  const share=((stats.cnt[country]||0)/stats.total*100).toFixed(1);
   $("dFlag").textContent=o.f; $("dName").textContent=country;
-  $("dStats").innerHTML=`수입량 비중 <b>${o.share}</b> · 수집 레코드 <b>${recs.length}</b>건 · 부적합 <b>${fails}</b>건`;
+  $("dStats").innerHTML=`수집 비중 <b>${share}%</b> · 연간 수입량 비중 <b>${o.share}</b> · 수집 레코드 <b>${recs.length}</b>건 · 부적합 <b>${fails}</b>건`;
   // 품목 집계
   const byItem={}; recs.forEach(d=>byItem[d.item]=(byItem[d.item]||0)+1);
   const items=Object.entries(byItem).sort((a,b)=>b[1]-a[1]);
@@ -386,9 +405,15 @@ window.openDetail=function(country){
     `<div class="co-row"><span class="co-name">${name}</span> <span class="loc">📍 ${v.loc}</span>
       <div class="sub">수집 통관 ${v.n}건</div></div>`).join("")
     : `<div class="sub" style="padding:8px">해당 국가의 수집 업체 데이터가 없습니다.</div>`;
-  $("detail").classList.add("open");
+}
+window.openDetail=function(country){
+  const o=ORIGINS.find(x=>x.c===country);
+  if(!o) return;
+  selCountry=country;
   filter.country=country; $("fCountry").value=country;
-  renderAll();
+  renderAll(); // stats 갱신 후 renderDetail이 재사용
+  renderDetail(country);
+  $("detail").classList.add("open");
   $("detail").scrollIntoView({behavior:"smooth",block:"nearest"});
   log(`<span class="sys">${o.f} ${country}</span> 상세 드릴다운 조회`);
 };
@@ -396,19 +421,21 @@ $("btnClose").onclick=()=>{selCountry=null;$("detail").classList.remove("open");
 
 /* KPI (세션 부적합) */
 function updateKpi(){
+  if(!stats) stats=computeStats();
   $("kpiFail").textContent=sessionFail;
-  const rate=DATA.length?(DATA.filter(d=>d.status==="부적합").length/DATA.length*100).toFixed(1):"0.0";
-  $("kpiFailRate").textContent=rate;
+  $("kpiFailRate").textContent=(stats.totalFail/stats.total*100).toFixed(1);
   $("newN").textContent=sessionNew;
 }
 
 /* ═══════════ 이벤트 ═══════════ */
-$("q").oninput=e=>{filter.q=e.target.value;renderTable();};
+let qTimer=null; // 검색 디바운스(150ms) — 타이핑마다 전체 테이블 재렌더 방지
+$("q").oninput=e=>{clearTimeout(qTimer);qTimer=setTimeout(()=>{filter.q=e.target.value;renderTable();},150);};
 $("fCountry").onchange=e=>{filter.country=e.target.value;if(e.target.value==="all"){selCountry=null;$("detail").classList.remove("open");}renderAll();};
 $("startDate").onchange=e=>{filter.start=e.target.value;renderTable();};
 $("endDate").onchange=e=>{filter.end=e.target.value;renderTable();};
-document.querySelectorAll("#statusFilters .fbtn").forEach(b=>b.onclick=()=>{
-  document.querySelectorAll("#statusFilters .fbtn").forEach(x=>x.classList.remove("on"));
+const statusBtns=document.querySelectorAll("#statusFilters .fbtn");
+statusBtns.forEach(b=>b.onclick=()=>{
+  statusBtns.forEach(x=>x.classList.remove("on"));
   b.classList.add("on"); filter.status=b.dataset.s; renderTable();
 });
 
@@ -421,6 +448,7 @@ function poll(){
   const cls=rec.status==="부적합"?"warn":(rec.status==="검토중"?"sys":"ok");
   log(`<span class="co">${rec.f} ${rec.buyer}</span> · ${rec.item} → <span class="${cls}">${rec.status}</span>`);
   renderAll(); updateKpi();
+  if(selCountry) renderDetail(selCountry); // 열린 국가 상세 패널도 실시간 갱신
 }
 function tick(){
   if(!polling)return;
@@ -437,9 +465,9 @@ $("togglePoll").onclick=()=>{
 
 /* ═══════════ 초기화 ═══════════ */
 ORIGINS.forEach(o=>{const op=document.createElement("option");op.value=o.c;op.textContent=`${o.f} ${o.c}`;$("fCountry").appendChild(op);});
-$("endDate").value=new Date().toISOString().slice(0,10);
+$("endDate").value=dayStr(new Date()); // 로컬 기준 오늘
 $("lastSync").textContent=ts();
-sessionFail=DATA.filter(d=>d.status==="부적합").length;
+// sessionFail은 0에서 시작 — '세션(접속 이후)' 신규 부적합만 집계
 renderTypes(); renderAll(); updateKpi();
 log(`<span class="sys">대시보드 초기화 완료</span> · 시드 데이터 ${DATA.length}건 로드`);
 startTimer();
