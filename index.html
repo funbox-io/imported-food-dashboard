@@ -160,14 +160,20 @@
         <!-- 패널: 연도별 -->
         <section id="panel-yearly" class="hidden space-y-4">
           <div class="card p-4">
-            <div class="flex items-center justify-between mb-2">
-              <h2 class="text-sm font-semibold text-slate-500">연도별 수입·부적합 추이</h2>
-              <div id="yearly-legend" class="flex gap-3 text-xs"></div>
+            <div class="flex items-center justify-between mb-2 gap-2">
+              <div class="flex items-center gap-2 min-w-0">
+                <button id="yearly-back"
+                        class="hidden text-sm px-2.5 py-1 rounded-lg border hover:bg-slate-50"
+                        style="border-color:var(--grid)">← 전체 연도</button>
+                <h2 id="yearly-title" class="text-sm font-semibold text-slate-500 truncate">연도별 수입·부적합 추이</h2>
+              </div>
+              <div id="yearly-legend" class="flex gap-3 text-xs shrink-0"></div>
             </div>
+            <p id="yearly-hint" class="text-xs text-slate-400 mb-1">막대를 클릭하면 해당 연도의 월별 상세를 볼 수 있습니다.</p>
             <div id="yearly-chart"></div>
           </div>
           <div class="card p-4 overflow-x-auto">
-            <h2 class="text-sm font-semibold text-slate-500 mb-3">연도별 요약</h2>
+            <h2 id="yearly-table-title" class="text-sm font-semibold text-slate-500 mb-3">연도별 요약</h2>
             <table class="w-full text-sm" id="yearly-table"></table>
           </div>
         </section>
