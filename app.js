@@ -33,16 +33,23 @@ function computeStats(){
 }
 let stats = null; // renderAll 시 갱신, openDetail/updateKpi에서 재사용
 
+// 특정 국가의 수집 품목 Top-k (메타에 품목이 없는 국가 대비)
+function topItems(country,k=3){
+  const m={}; for(const d of DATA) if(d.c===country) m[d.item]=(m[d.item]||0)+1;
+  return Object.entries(m).sort((a,b)=>b[1]-a[1]).slice(0,k).map(([n])=>n);
+}
 function renderOrigins(){
   const {cnt,total}=stats;
-  // 수집 비중 내림차순 정렬 (실시간 순위)
-  const rows=[...ORIGINS].sort((a,b)=>(cnt[b.c]||0)-(cnt[a.c]||0));
+  // 기준 10개국 + 수집 데이터에 등장한 국가 전부 (실데이터 모드 대응)
+  const countries=[...new Set([...ORIGINS.map(o=>o.c),...Object.keys(cnt)])];
+  const rows=countries.map(metaOf).sort((a,b)=>(cnt[b.c]||0)-(cnt[a.c]||0));
   $("originBody").innerHTML = rows.map((o,rank)=>{
     const n=cnt[o.c]||0, share=(n/total*100).toFixed(1);
+    const chips=(o.items&&o.items.length?o.items:topItems(o.c));
     return `<tr data-c="${o.c}" class="${o.c===selCountry?'sel':''}" onclick="openDetail('${o.c}')">
       <td class="num" style="color:var(--ink-dim)">${rank+1}</td>
       <td><span class="flag">${o.f}</span>${o.c}${n?`<span class="co-badge">건 ${n}</span>`:""}</td>
-      <td>${o.items.map(it=>`<span class="item-chip">${it}</span>`).join("")}</td>
+      <td>${chips.map(it=>`<span class="item-chip">${it}</span>`).join("")||`<span class="sub">—</span>`}</td>
       <td class="num"><b style="color:var(--sky)">${share}%</b><div class="sub" style="margin-top:2px">연간: ${o.annual}</div></td></tr>`;
   }).join("");
 }
@@ -63,7 +70,7 @@ function renderTable(){
       <td style="white-space:nowrap"><span class="flag">${d.f}</span>${d.c}</td>
       <td><div style="font-weight:600">${d.item}</div><div class="sub">${d.qty} · ${d.type}</div></td>
       <td><div class="co-name">${d.co}</div><div class="sub loc">📍 ${d.region} 통관</div></td>
-      <td><div style="font-weight:600;font-size:12px">${d.buyer}</div><div class="sub">${d.buyerLoc} · 유통 ${d.dist.length}곳</div></td>
+      <td><div style="font-weight:600;font-size:12px">${d.buyer}</div><div class="sub">${d.buyerLoc}${d.dist.length?` · 유통 ${d.dist.length}곳`:""}</div></td>
       <td><span class="status s-${d.status}">${d.status}</span></td>
       <td><div class="reason ${d.status==='부적합'?'fail':''}">${d.status==='부적합'?'⚠ ':''}${d.reason}</div></td>
     </tr>`).join("") : `<tr><td colspan="7" class="empty">조건에 일치하는 데이터가 없습니다.</td></tr>`;
@@ -113,8 +120,7 @@ function renderTrend(){
 /* 국가 상세 드릴다운 */
 // 패널 내용 렌더 (열기/스크롤과 분리 — 폴링 시 열린 패널 자동 갱신에 재사용)
 function renderDetail(country){
-  const o=ORIGINS.find(x=>x.c===country);
-  if(!o) return;
+  const o=metaOf(country); // 기준 10개국 외 국가도 대응 (실데이터 모드)
   if(!stats) stats=computeStats();
   const recs=DATA.filter(d=>d.c===country);
   const fails=stats.fail[country]||0;
@@ -126,7 +132,7 @@ function renderDetail(country){
   const items=Object.entries(byItem).sort((a,b)=>b[1]-a[1]);
   $("foodList").innerHTML = items.length ? items.map(([n,c])=>
     `<div class="food-row"><span>${n}</span><span class="fcnt">${c}건</span></div>`).join("")
-    : `<div class="sub" style="padding:8px">주요 품목: ${o.items.join(", ")}</div>`;
+    : `<div class="sub" style="padding:8px">${o.items.length?`주요 품목: ${o.items.join(", ")}`:"수집된 품목 없음"}</div>`;
   // 업체 집계
   const byCo={}; recs.forEach(d=>{(byCo[d.buyer]=byCo[d.buyer]||{loc:d.buyerLoc,n:0}).n++;});
   const cos=Object.entries(byCo).sort((a,b)=>b[1].n-a[1].n);
@@ -136,8 +142,7 @@ function renderDetail(country){
     : `<div class="sub" style="padding:8px">해당 국가의 수집 업체 데이터가 없습니다.</div>`;
 }
 window.openDetail=function(country){
-  const o=ORIGINS.find(x=>x.c===country);
-  if(!o) return;
+  const o=metaOf(country);
   selCountry=country;
   filter.country=country; $("fCountry").value=country;
   renderAll(); // stats 갱신 후 renderDetail이 재사용
@@ -184,15 +189,18 @@ window.openRec=function(id){
     rmRow("국내 구매자",buyerLink(d.buyer))+
     rmRow("구매자 주소",comp?comp.addr:d.buyerLoc)+
     rmRow("검사 사유 / 검출",`<span class="${d.status==='부적합'?'reason fail':''}">${d.status==='부적합'?'⚠ ':''}${d.reason}</span>`)+
-    `<div style="margin:14px 0 4px;font-size:12px;font-weight:600;color:var(--ink-dim)">🏪 국내 유통/구매처 (${d.dist.length}곳)</div>`+
-    d.dist.map(x=>rmRow(x.n,`<span class="sub" style="margin:0">${x.addr}</span>`)).join("");
+    (d.dist.length?
+      `<div style="margin:14px 0 4px;font-size:12px;font-weight:600;color:var(--ink-dim)">🏪 국내 유통/구매처 (${d.dist.length}곳)</div>`+
+      d.dist.map(x=>rmRow(x.n,`<span class="sub" style="margin:0">${x.addr}</span>`)).join("") : "");
   $("recModal").classList.add("open");
 };
 
 /* 구매자(기업/개인) 상세 모달 — 소재지·사업자정보·수집 이력·거래 유통처 */
 window.openBuyer=function(name){
-  const comp=COMPANIES.find(c=>c.n===name); if(!comp)return;
   const recs=DATA.filter(d=>d.buyer===name);
+  // 실데이터 모드의 미등록 업체: 수집 레코드에서 주소 유추, 비공개 항목 표기
+  const comp=COMPANIES.find(c=>c.n===name)
+    ||{addr:(recs[0]&&recs[0].buyerLoc)||"-", biz:"공개 정보 없음", tel:"공개 정보 없음"};
   const fails=recs.filter(d=>d.status==="부적합").length;
   // 수입 품목 집계
   const byItem={}; recs.forEach(d=>byItem[d.item]=(byItem[d.item]||0)+1);
@@ -230,27 +238,69 @@ $("btnCsv").onclick=()=>{
   log(`<span class="sys">CSV 내보내기</span> · ${rows.length}건`);
 };
 
+/* ═══════════ 실데이터 모드 — GitHub Actions가 생성한 data/latest.json ═══════════ */
+let REAL_MODE=false;
+const REAL_URL="data/latest.json";
+const seenIds=new Set(DATA.map(d=>d.id));
+
+async function fetchReal(initial=false){
+  try{
+    const res=await fetch(`${REAL_URL}?t=${Date.now()}`,{cache:"no-store"});
+    if(!res.ok) return false;
+    const j=await res.json();
+    if(!Array.isArray(j.records)||!j.records.length) return false;
+    if(initial){ DATA.length=0; seenIds.clear(); }
+    let added=0;
+    for(const r of j.records){
+      if(seenIds.has(r.id)) continue;
+      seenIds.add(r.id);
+      DATA.push({...r, f:flagOf(r.c), dt:new Date(r.date), dist:r.dist||[], isNew:!initial});
+      added++;
+      if(!initial){ sessionNew++; if(r.status==="부적합")sessionFail++; }
+    }
+    DATA.sort((a,b)=>b.dt-a.dt);
+    $("lastSync").textContent=(j.updated||"").slice(11,19)||ts();
+    if(added&&!initial) log(`<span class="ok">실데이터 ${added}건 신규 수신</span> · ${j.source||""}`);
+    return true;
+  }catch(e){ return false; }
+}
+function enterRealMode(src){
+  REAL_MODE=true;
+  const b=document.querySelector(".src-badge");
+  if(b){b.textContent="● 실데이터";
+    b.style.background="rgba(61,220,151,.12)";b.style.color="var(--mint)";b.style.borderColor="rgba(61,220,151,.4)";}
+  $("liveTxt").textContent="실데이터 자동 갱신 (60s)";
+  log(`<span class="ok">실데이터 모드 전환</span> · ${src||"data/latest.json"}`);
+}
+
 /* ═══════════ 폴링 ═══════════ */
-function poll(){
-  const rec=makeRecord(new Date()); rec.isNew=true;
-  DATA.unshift(rec); if(DATA.length>300)DATA.pop();
-  sessionNew++; if(rec.status==="부적합")sessionFail++;
-  $("lastSync").textContent=ts();
-  const cls=rec.status==="부적합"?"warn":(rec.status==="검토중"?"sys":"ok");
-  log(`<span class="co">${rec.f} ${rec.buyer}</span> · ${rec.item} → <span class="${cls}">${rec.status}</span>`);
+async function poll(){
+  if(REAL_MODE){
+    // 실데이터: Actions가 갱신한 정적 JSON을 재조회 (신규분만 반영)
+    await fetchReal(false);
+  }else{
+    // 데모: 가상 레코드 생성
+    const rec=makeRecord(new Date()); rec.isNew=true;
+    DATA.unshift(rec); seenIds.add(rec.id); if(DATA.length>300)DATA.pop();
+    sessionNew++; if(rec.status==="부적합")sessionFail++;
+    $("lastSync").textContent=ts();
+    const cls=rec.status==="부적합"?"warn":(rec.status==="검토중"?"sys":"ok");
+    log(`<span class="co">${rec.f} ${rec.buyer}</span> · ${rec.item} → <span class="${cls}">${rec.status}</span>`);
+  }
   renderAll(); updateKpi();
   if(selCountry) renderDetail(selCountry); // 열린 국가 상세 패널도 실시간 갱신
 }
+const pollSec=()=>REAL_MODE?60:5; // 실데이터: 60초 / 데모: 5초
 function tick(){
   if(!polling)return;
   countdown--; $("countdown").textContent=countdown+"s";
-  if(countdown<=0){poll();countdown=5;}
+  if(countdown<=0){poll();countdown=pollSec();}
 }
 function startTimer(){clearInterval(timer);timer=setInterval(tick,1000);}
 $("togglePoll").onclick=()=>{
   polling=!polling;
   const b=$("togglePoll");
-  if(polling){b.textContent="■ 수집 정지";b.classList.remove("off");$("liveDot").classList.remove("off");$("liveTxt").textContent="실시간 수집중";$("feedTag").textContent="POLLING ACTIVE";countdown=5;startTimer();log(`<span class="sys">실시간 수집 재개</span>`);}
+  if(polling){b.textContent="■ 수집 정지";b.classList.remove("off");$("liveDot").classList.remove("off");$("liveTxt").textContent=REAL_MODE?"실데이터 자동 갱신 (60s)":"실시간 수집중";$("feedTag").textContent="POLLING ACTIVE";countdown=pollSec();startTimer();log(`<span class="sys">실시간 수집 재개</span>`);}
   else{clearInterval(timer);b.textContent="▶ 수집 재개";b.classList.add("off");$("liveDot").classList.add("off");$("liveTxt").textContent="수집 정지됨";$("countdown").textContent="—";$("feedTag").textContent="PAUSED";log(`<span class="warn">실시간 수집 정지</span>`);}
 };
 
@@ -262,6 +312,12 @@ $("trendLegend").innerHTML=
 $("endDate").value=dayStr(new Date()); // 로컬 기준 오늘
 $("lastSync").textContent=ts();
 // sessionFail은 0에서 시작 — '세션(접속 이후)' 신규 부적합만 집계
-renderTypes(); renderAll(); updateKpi();
-log(`<span class="sys">대시보드 초기화 완료</span> · 시드 데이터 ${DATA.length}건 로드`);
-startTimer();
+renderTypes();
+(async()=>{
+  // 실데이터(data/latest.json) 존재 시 실데이터 모드, 없으면 데모 모드로 자동 전환
+  if(await fetchReal(true)) enterRealMode();
+  renderAll(); updateKpi();
+  log(`<span class="sys">대시보드 초기화 완료</span> · ${REAL_MODE?"실데이터":"데모 시드"} ${DATA.length}건 로드`);
+  countdown=pollSec();
+  startTimer();
+})();

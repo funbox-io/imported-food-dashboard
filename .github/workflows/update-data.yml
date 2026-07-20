@@ -1,0 +1,38 @@
+name: Update import food data
+
+on:
+  schedule:
+    - cron: "17 * * * *"   # 매시간 17분 (KST 기준 매시간)
+  workflow_dispatch:        # 수동 실행 버튼
+
+permissions:
+  contents: write
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Fetch MFDS import food data
+        env:
+          MFDS_API_KEY: ${{ secrets.MFDS_API_KEY }}
+          # 선택: 활용신청 페이지의 정확한 요청주소로 덮어쓰기 가능
+          MFDS_API_URL: ${{ secrets.MFDS_API_URL }}
+        run: python scripts/fetch_data.py
+
+      - name: Commit & push if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/latest.json
+          if git diff --cached --quiet; then
+            echo "변경 없음 — 커밋 생략"
+          else
+            git commit -m "data: 수입식품 데이터 자동 갱신 [skip ci]"
+            git push
+          fi

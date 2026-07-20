@@ -33,6 +33,29 @@ python -m http.server 8000
 # http://localhost:8000
 ```
 
+## 실데이터 연동 (GitHub Actions 파이프라인)
+
+기본은 데모 모드이며, 아래 설정 시 **식약처 수입식품 회수·판매중지(부적합) 실데이터**로 자동 전환됩니다.
+
+```
+GitHub Actions (매시간 cron)
+  → data.go.kr 식약처 API 호출 (키는 Secrets — 소스에 노출 안 됨)
+  → data/latest.json 생성·커밋
+  → 대시보드가 60초마다 fetch → 신규 건 실시간 표시
+```
+
+**설정 방법**
+
+1. [data.go.kr](https://www.data.go.kr) 가입 → **"식품의약품안전처_수입식품 회수판매중지 제품 정보"** ([바로가기](https://www.data.go.kr/data/15095378/openapi.do)) 활용신청 → 서비스 키 발급
+2. 저장소 **Settings → Secrets and variables → Actions**에 등록:
+   - `MFDS_API_KEY` (필수): 발급받은 서비스 키 (Encoding 키 권장)
+   - `MFDS_API_URL` (선택): 활용신청 상세페이지의 정확한 요청주소(오퍼레이션 포함) — 기본값과 다를 경우만
+3. **Actions 탭 → "Update import food data" → Run workflow**로 첫 실행 (이후 매시간 자동)
+4. `data/latest.json`이 생성되면 대시보드가 자동으로 "● 실데이터" 모드로 전환됩니다
+
+> 참고: 정부 공개 API는 초단위 실시간 스트림이 아니라 주기 갱신 데이터입니다.
+> 회수·판매중지 API 특성상 실데이터 모드의 레코드는 전부 "부적합" 건입니다.
+
 ## 데이터 고지
 
 > ⚠ 상단 KPI·원산지·품목군 통계는 공개 검사연보 기반 집계이며,
