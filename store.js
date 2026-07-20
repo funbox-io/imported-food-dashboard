@@ -28,6 +28,14 @@ export class Store {
     return newIds;
   }
 
+  // 과거 시드 데이터 주입 — 신규 표시/타임라인에 포함하지 않음
+  seed(batch) {
+    for (const rec of batch) {
+      this.seen.add(rec.id);
+      this.records.set(rec.id, rec);
+    }
+  }
+
   // 날짜 내림차순 정렬된 전체 목록
   all() {
     return [...this.records.values()].sort((a, b) =>

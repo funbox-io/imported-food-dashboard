@@ -10,7 +10,7 @@ const C_BLUE = "#2a78d6", C_BLUE_D = "#184f95", C_RED = "#d03b3b";
 export const UI = {
   els: {},
   panels: {},
-  activeTab: "all",
+  activeTab: "overview",
   filterCountry: null,
   filterDate: "all",
   searchTerm: "",
@@ -27,16 +27,20 @@ export const UI = {
       search: $("search"), dateFilter: $("date-filter"),
       countTotal: $("count-total"), countNew: $("count-new"),
       statusDot: $("status-dot"), statusText: $("status-text"), lastUpdated: $("last-updated"),
-      togglePoll: $("toggle-poll"), tabs: $("tabs"),
+      togglePoll: $("toggle-poll"), nav: $("nav"),
       listCountry: $("list-country"), listItem: $("list-item"),
       listRegion: $("list-region"), listBuyer: $("list-buyer"),
       mapNote: $("map-note"), trendChart: $("trend-chart"), trendLegend: $("trend-legend"),
+      ovYearly: $("ov-yearly"), ovYearlyLegend: $("ov-yearly-legend"),
+      ovCountry: $("ov-country"), ovItem: $("ov-item"), ovRecent: $("ov-recent"),
+      yearlyChart: $("yearly-chart"), yearlyLegend: $("yearly-legend"), yearlyTable: $("yearly-table"),
       dataSource: $("data-source"), dataRange: $("data-range"),
       modal: $("modal"), modalTitle: $("modal-title"),
       modalBody: $("modal-body"), modalClose: $("modal-close"),
     };
     this.panels = {
-      all: $("panel-all"), map: $("panel-map"), country: $("panel-country"),
+      overview: $("panel-overview"), all: $("panel-all"), map: $("panel-map"),
+      yearly: $("panel-yearly"), country: $("panel-country"),
       item: $("panel-item"), buyer: $("panel-buyer"), trend: $("panel-trend"),
     };
     this.onRowClick = onRowClick;
@@ -56,13 +60,13 @@ export const UI = {
     this.els.modal.addEventListener("click", e => {
       if (e.target === this.els.modal) this.closeModal();
     });
-    this.els.tabs.querySelectorAll(".tab-btn").forEach(btn =>
+    this.els.nav.querySelectorAll(".nav-btn").forEach(btn =>
       btn.addEventListener("click", () => this.switchTab(btn.dataset.tab)));
   },
 
   switchTab(tab) {
     this.activeTab = tab;
-    this.els.tabs.querySelectorAll(".tab-btn").forEach(btn =>
+    this.els.nav.querySelectorAll(".nav-btn").forEach(btn =>
       btn.classList.toggle("active", btn.dataset.tab === tab));
     for (const [key, panel] of Object.entries(this.panels))
       panel.classList.toggle("hidden", key !== tab);
@@ -97,6 +101,8 @@ export const UI = {
     this.renderBuyerView(filtered);
     this.renderTrend(timeline || []);
     this.renderMap(filtered);
+    this.renderOverview(filtered, newIds);
+    this.renderYearly(filtered);
     this.renderDataRange(all);
     this.els.countTotal.textContent = filtered.length;
     this.els.countNew.textContent = newIds.size;
@@ -157,9 +163,12 @@ export const UI = {
 
   applyFilters(records) {
     const days = { today: 0, "7d": 6, "30d": 29 }[this.filterDate];
+    const curYear = new Date().getFullYear();
     return records.filter(r => {
       if (this.filterCountry && r.country !== this.filterCountry) return false;
-      if (days != null) {
+      if (this.filterDate === "year") {
+        if (new Date(r.date).getFullYear() !== curYear) return false;
+      } else if (days != null) {
         const diff = daysAgo(r.date);
         if (diff == null || diff < 0 || diff > days) return false;
       }
@@ -369,6 +378,104 @@ export const UI = {
     hit.addEventListener("mouseleave", () => { cross.style.display = "none"; tip.style.display = "none"; });
   },
 
+  // ── 연도별 데이터 ────────────────────────────────────────
+  yearGroups(records) {
+    return Store.aggregate(records, r => (r.date || "").slice(0, 4))
+      .filter(g => /^\d{4}$/.test(g.key))
+      .sort((a, b) => a.key.localeCompare(b.key)); // 연도 오름차순
+  },
+
+  // 세로 막대 차트(정상+검토=파랑 / 부적합=빨강 스택). SVG 문자열 반환.
+  yearBarsSvg(groups, { height = 240 } = {}) {
+    if (!groups.length) return `<div class="text-sm text-slate-400 py-8 text-center">연도 데이터 없음</div>`;
+    const W = 680, H = height, m = { l: 34, r: 12, t: 16, b: 26 };
+    const iw = W - m.l - m.r, ih = H - m.t - m.b;
+    const n = groups.length;
+    const slot = iw / n, bw = Math.min(52, slot * 0.55);
+    const rawMax = Math.max(1, ...groups.map(g => g.total));
+    const yMax = niceMax(rawMax);
+    const yAt = v => m.t + ih - (v / yMax) * ih;
+    const cx = i => m.l + slot * (i + 0.5);
+
+    let grid = "", yl = "";
+    for (let k = 0; k <= 4; k++) {
+      const v = Math.round((yMax / 4) * k), y = yAt(v);
+      grid += `<line x1="${m.l}" y1="${y}" x2="${W - m.r}" y2="${y}" stroke="var(--grid)" stroke-width="1"/>`;
+      yl += `<text x="${m.l - 6}" y="${y + 3}" text-anchor="end" font-size="10" fill="var(--muted)">${v}</text>`;
+    }
+    let bars = "";
+    for (let i = 0; i < n; i++) {
+      const g = groups[i], x = cx(i) - bw / 2;
+      const okH = ((g.total - g.fail) / yMax) * ih;
+      const failH = (g.fail / yMax) * ih;
+      const yTotalTop = yAt(g.total);
+      const yFailTop = yAt(g.fail);
+      // 파랑(정상·검토) 상단 세그먼트
+      if (g.total - g.fail > 0)
+        bars += `<rect x="${x}" y="${yTotalTop}" width="${bw}" height="${Math.max(0, okH - (failH > 0 ? 2 : 0))}" rx="3" fill="var(--seq-450)"/>`;
+      // 빨강(부적합) 하단 세그먼트
+      if (g.fail > 0)
+        bars += `<rect x="${x}" y="${yFailTop}" width="${bw}" height="${failH}" rx="3" fill="var(--critical)"/>`;
+      bars += `<text x="${cx(i)}" y="${yTotalTop - 5}" text-anchor="middle" font-size="11" font-weight="600" fill="var(--ink-2)">${g.total}</text>`;
+      bars += `<text x="${cx(i)}" y="${H - 8}" text-anchor="middle" font-size="11" fill="var(--muted)">${g.key}년</text>`;
+    }
+    return `<svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block">
+      ${grid}${yl}
+      <line x1="${m.l}" y1="${m.t}" x2="${m.l}" y2="${m.t + ih}" stroke="var(--baseline)" stroke-width="1"/>
+      ${bars}</svg>`;
+  },
+
+  yearLegend() {
+    const sw = (c, t) => `<span class="inline-flex items-center gap-1">
+      <span style="width:10px;height:10px;border-radius:2px;background:${c};display:inline-block"></span>
+      <span class="text-slate-600">${t}</span></span>`;
+    return sw("var(--seq-450)", "정상·검토") + sw("var(--critical)", "부적합");
+  },
+
+  renderYearly(records) {
+    const groups = this.yearGroups(records);
+    this.els.yearlyLegend.innerHTML = this.yearLegend();
+    this.els.yearlyChart.innerHTML = this.yearBarsSvg(groups, { height: 300 });
+    // 요약 테이블
+    if (!groups.length) { this.els.yearlyTable.innerHTML = ""; return; }
+    let rows = `<thead class="text-slate-500 text-left"><tr>
+      <th class="py-1.5 pr-4 font-medium">연도</th>
+      <th class="py-1.5 pr-4 font-medium text-right">총건수</th>
+      <th class="py-1.5 pr-4 font-medium text-right">부적합</th>
+      <th class="py-1.5 font-medium text-right">부적합률</th></tr></thead><tbody>`;
+    for (const g of [...groups].reverse()) {
+      const rate = g.total ? (g.fail / g.total * 100).toFixed(1) : "0.0";
+      rows += `<tr class="border-t" style="border-color:var(--grid)">
+        <td class="py-1.5 pr-4 font-medium">${g.key}년</td>
+        <td class="py-1.5 pr-4 text-right tabular">${g.total}</td>
+        <td class="py-1.5 pr-4 text-right tabular" style="color:var(--critical)">${g.fail}</td>
+        <td class="py-1.5 text-right tabular">${rate}%</td></tr>`;
+    }
+    this.els.yearlyTable.innerHTML = rows + "</tbody>";
+  },
+
+  renderOverview(records, newIds) {
+    // 연도별 미니 차트
+    this.els.ovYearlyLegend.innerHTML = this.yearLegend();
+    this.els.ovYearly.innerHTML = this.yearBarsSvg(this.yearGroups(records), { height: 220 });
+    // Top 국가 / 품목
+    this.renderBarList(this.els.ovCountry, Store.aggregate(records, r => r.country).slice(0, 5),
+      g => `${FLAGS[g.key] || "🏳️"} ${esc(g.key)}`);
+    this.renderBarList(this.els.ovItem, Store.aggregate(records, r => r.itemName).slice(0, 5),
+      g => `<span class="font-medium">${esc(g.key)}</span>`);
+    // 최근 신고 5건
+    const recent = [...records].sort((a, b) =>
+      String(b.date).localeCompare(String(a.date)) || Number(b.id) - Number(a.id)).slice(0, 5);
+    this.els.ovRecent.innerHTML = recent.length
+      ? recent.map(r => `<div class="flex items-center gap-2 py-2 text-sm ${newIds.has(r.id) ? "row-new" : ""}">
+          <span class="tabular text-xs text-slate-400 w-20 shrink-0">${esc(r.date)}</span>
+          <span class="shrink-0">${FLAGS[r.country] || "🏳️"}</span>
+          <span class="flex-1 truncate">${esc(r.itemName)} <span class="text-slate-400 text-xs">· ${esc(r.importer)}</span></span>
+          <span class="px-2 py-0.5 rounded-full text-xs font-medium ${statusClass[r.status]} shrink-0">${statusLabel[r.status]}</span>
+        </div>`).join("")
+      : `<div class="text-sm text-slate-400 py-4">데이터 없음</div>`;
+  },
+
   openModal(r, stats) {
     const geo = REGION_GEO[r.region];
     this.els.modalTitle.textContent = `${r.itemName} (${r.country})`;
@@ -406,6 +513,15 @@ export const UI = {
 function esc(s) {
   return String(s ?? "").replace(/[&<>"']/g,
     m => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[m]));
+}
+
+// 축 상한을 보기 좋은 값으로 반올림 (1/2/5 × 10^k)
+function niceMax(v) {
+  if (v <= 5) return 5;
+  const pow = Math.pow(10, Math.floor(Math.log10(v)));
+  const n = v / pow;
+  const step = n <= 1 ? 1 : n <= 2 ? 2 : n <= 5 ? 5 : 10;
+  return step * pow;
 }
 
 const fmtHM  = t => new Date(t).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" });

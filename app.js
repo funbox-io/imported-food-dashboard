@@ -1,4 +1,4 @@
-import { fetchRecords } from "./api.js";
+import { fetchRecords, seedHistorical } from "./api.js";
 import { Store } from "./store.js";
 import { UI } from "./ui.js";
 
@@ -59,7 +59,12 @@ UI.init({
 });
 
 // URL 해시로 탭 딥링크 (#country / #item / #buyer)
-if (["map", "country", "item", "buyer", "trend"].includes(location.hash.slice(1)))
+// 과거 다년치 데이터 시드 (실시간 데이터와 함께 표시)
+store.seed(seedHistorical());
+render();
+
+const validTabs = ["overview", "all", "map", "yearly", "country", "item", "buyer", "trend"];
+if (validTabs.includes(location.hash.slice(1)))
   UI.switchTab(location.hash.slice(1));
 
 startPolling();

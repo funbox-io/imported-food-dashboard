@@ -123,45 +123,68 @@ const IMPORTERS = [
 
 const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 
-// 최근 N일 이내의 임의 신고일(YYYY-MM-DD) — 최근 쪽으로 편향
+// 공통 풀 (실시간 목업 + 과거 시드 데이터가 공유)
+const COUNTRIES = Object.keys(FLAGS).filter(c => c !== "기타");
+const PORTS = ["인천항", "부산항", "평택항", "인천공항", "김해공항"];
+const ITEMS = [
+  ["가공식품", "냉동만두"], ["농산물", "건고추"], ["수산물", "냉동새우"],
+  ["주류", "레드와인"], ["과자류", "초콜릿"], ["유제품", "체다치즈"],
+];
+const STATUSES = ["pass", "pass", "pass", "review", "fail"];
+const HAZARDS = ["잔류농약 초과(클로르피리포스)", "식중독균 검출(리스테리아)", "중금속(납) 기준초과"];
+
+// 신고일(Date)로 레코드 1건 생성
+function makeRecord(id, dateObj) {
+  const st = pick(STATUSES);
+  const [cat, name] = pick(ITEMS);
+  const imp = pick(IMPORTERS);
+  return {
+    id: String(id),
+    date: dateObj.toISOString().slice(0, 10),
+    country: pick(COUNTRIES),
+    port: pick(PORTS),
+    category: cat,
+    itemName: name,
+    weight: `${(Math.random() * 5000).toFixed(0)} kg`,
+    importer: imp.name,
+    region: imp.region,
+    manufacturer: `Overseas Foods Co. #${Math.floor(Math.random() * 900 + 100)}`,
+    status: st,
+    hazard: st === "fail" ? pick(HAZARDS) : "",
+  };
+}
+
+// 최근 N일 이내의 임의 신고일 — 최근 쪽으로 편향
 function recentDate() {
-  const daysAgo = Math.floor(Math.random() ** 2 * 30); // 0~29일, 오늘 쪽 편향
   const d = new Date();
-  d.setDate(d.getDate() - daysAgo);
-  return d.toISOString().slice(0, 10);
+  d.setDate(d.getDate() - Math.floor(Math.random() ** 2 * 30));
+  return d;
+}
+
+// ----------------------------------------------------------
+// 과거 다년치 시드 데이터 (연도별 추이용). 최근 5개 연도, 완만한 증가 추세.
+//   ⚠ 데모 샘플 — 실제 통관 통계가 아님.
+// ----------------------------------------------------------
+export function seedHistorical() {
+  const now = new Date();
+  const curY = now.getFullYear();
+  const out = [];
+  let seq = 100000; // 실시간 목업 id(1000~)와 충돌 방지
+  for (let y = curY - 4; y <= curY; y++) {
+    const count = 40 + (y - (curY - 4)) * 12 + Math.floor(Math.random() * 15);
+    for (let i = 0; i < count; i++) {
+      const d = new Date(y, Math.floor(Math.random() * 12), 1 + Math.floor(Math.random() * 28));
+      if (d > now) continue; // 미래 신고일 제외
+      out.push(makeRecord(seq++, d));
+    }
+  }
+  return out.map(normalize);
 }
 
 let mockSeq = 1000;
 function mockFetch() {
-  const countries = Object.keys(FLAGS).filter(c => c !== "기타");
-  const ports = ["인천항", "부산항", "평택항", "인천공항", "김해공항"];
-  const items = [
-    ["가공식품", "냉동만두"], ["농산물", "건고추"], ["수산물", "냉동새우"],
-    ["주류", "레드와인"], ["과자류", "초콜릿"], ["유제품", "체다치즈"],
-  ];
-  const statuses = ["pass", "pass", "pass", "review", "fail"];
-  const hazards = ["잔류농약 초과(클로르피리포스)", "식중독균 검출(리스테리아)", "중금속(납) 기준초과"];
-
   const n = 3 + Math.floor(Math.random() * 4);
   const out = [];
-  for (let i = 0; i < n; i++) {
-    const st = pick(statuses);
-    const [cat, name] = pick(items);
-    const imp = pick(IMPORTERS);
-    out.push({
-      id: String(mockSeq++),
-      date: recentDate(),
-      country: pick(countries),
-      port: pick(ports),
-      category: cat,
-      itemName: name,
-      weight: `${(Math.random() * 5000).toFixed(0)} kg`,
-      importer: imp.name,
-      region: imp.region,
-      manufacturer: `Overseas Foods Co. #${Math.floor(Math.random() * 900 + 100)}`,
-      status: st,
-      hazard: st === "fail" ? pick(hazards) : "",
-    });
-  }
+  for (let i = 0; i < n; i++) out.push(makeRecord(mockSeq++, recentDate()));
   return new Promise(r => setTimeout(() => r(out.map(normalize)), 300));
 }
